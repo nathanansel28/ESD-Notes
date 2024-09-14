@@ -1,0 +1,411 @@
+---
+title: "Test your knowledge of Clustering and Collaborative filtering"
+date: "Term 5, 2024"
+output:
+ html_document: 
+    toc: true
+    toc_depth: 2
+    toc_float: true
+    highlight: tango
+geometry: margin=1in
+fontsize: 12pt
+linkcolor: blue    
+---
+
+# Question 1 
+## a) 
+There are a total of 11580 observations.
+```{r}
+stocks <- read.csv("StocksCluster.csv")
+str(stocks)
+```
+
+## b)
+54.6114 percent of the observations had positive returns in December 
+
+```{r}
+table(stocks$PositiveDec)/nrow(stocks)
+```
+
+## c)
+
+Maximum correlation = 0.1916727856. By observing the correlation matrix, we can see it is between the returns of October and November.
+```{r}
+cor(stocks[,1:11])
+sort(cor(stocks[,1:11]))
+```
+
+## d)
+Maximum mean return is in April and minimum mean return is in September.
+
+```{r}
+colMeans(stocks[,1:11])
+which(colMeans(stocks[,1:11]) == max(colMeans(stocks[,1:11])))
+which(colMeans(stocks[,1:11]) == min(colMeans(stocks[,1:11])))
+```
+
+## e)
+
+Accuracy = 0.5711818
+```{r}
+library(caTools)
+set.seed(144)
+spl <- sample.split(stocks$PositiveDec, SplitRatio = .7)
+stocksTrain <- subset(stocks, spl == TRUE)
+stocksTest <- subset(stocks, spl == FALSE)
+stocksModel <- glm(PositiveDec ~ ., data = stocksTrain, family = "binomial")
+stocksPredict <- predict(stocksModel, newdata = stocksTrain, type = "response")
+table(stocksPredict >= 0.5, stocksTrain$PositiveDec)
+(990+3640)/(990+787+2689+3640)
+```
+## f)
+Accuracy on test set = 0.5670697 (close to what we see on the training set)
+
+```{r}
+stocksPredicttest <- predict(stocksModel, newdata = stocksTest, type = "response")
+table(stocksPredicttest >= .5, stocksTest$PositiveDec)
+(417+1553)/(417+344+1160+1553)
+```
+
+## g)
+
+Baseline model predicts positive return (majority in training set). Accuracy of this on test set = 0.5460564. 
+```{r}
+table(stocksTrain$PositiveDec)
+table(stocksTest$PositiveDec)
+1897/(1897+1577)
+```
+
+## h)
+
+We remove the dependent variable in the clustering phase since needing to know the dependent variable in assigning an observation to a cluster defeats the purpose of the methodology (option iii).  
+
+```{r}
+limitedTrain <- stocksTrain
+limitedTrain$PositiveDec <- NULL
+limitedTest <- stocksTest
+limitedTest$PositiveDec <- NULL
+```
+
+## i)
+
+Mean of ReturnJan in training set = 0 (normalized) while in the test set it is -0.0004185886.
+
+```{r}
+#install.packages("caret")
+library(caret)
+preproc <- preProcess(limitedTrain)
+normTrain <- predict(preproc, limitedTrain)
+normTest <- predict(preproc, limitedTest)
+colMeans(normTrain)
+colMeans(normTest)
+```
+## j) 
+The mean is 0 in training set since the distribution in training and test set are not identical and normalization is done on the training set. 
+
+## k)
+Cluster 2 has the largest number of observations (4731).
+
+```{r}
+set.seed(144)
+km <- kmeans(normTrain, centers = 3)
+table(km$cluster)
+```
+
+## l)
+Cluster 2 has the 2029 observations in the test set.
+```{r}
+#install.packages("flexclust")
+library(flexclust)
+?as.kcca
+km.kcca <- as.kcca(km, normTrain)
+clusterTrain <- predict(km.kcca)
+clusterTest <- predict(km.kcca, newdata = normTest)
+table(clusterTest)
+```
+
+## m)
+stocksTrain1 (from cluster 1) has the highest average value of the dependent varibale in the training set.
+
+```{r}
+stocksTrain1 <- subset(stocksTrain, clusterTrain == 1)
+stocksTrain2 <- subset(stocksTrain, clusterTrain == 2)
+stocksTrain3 <- subset(stocksTrain, clusterTrain == 3)
+stocksTest1 <- subset(stocksTest, clusterTest == 1)
+stocksTest2 <- subset(stocksTest, clusterTest == 2)
+stocksTest3 <- subset(stocksTest, clusterTest == 3)
+mean(stocksTrain1$PositiveDec)
+mean(stocksTrain2$PositiveDec)
+mean(stocksTrain3$PositiveDec)
+```
+
+## n)
+ReturnFeb, ReturnMar, ReturnJuly, ReturnSep have positive coefficient in one of the three models (at least) and negative coefficient in one of the three models (at least). 
+
+```{r}
+StocksModel1 <- glm(PositiveDec ~ ., data = stocksTrain1, family = "binomial")
+StocksModel2 <- glm(PositiveDec ~ ., data = stocksTrain2, family = "binomial")
+StocksModel3 <- glm(PositiveDec ~ ., data = stocksTrain3, family = "binomial")
+summary(StocksModel1)
+summary(StocksModel2)
+summary(StocksModel3)
+```
+
+## o)
+
+Accuracy is 0.6446125, 0.5250126 and 0.625323 respectively.
+```{r}
+PredictTest1 <- predict(StocksModel1, newdata = stocksTest1, type = "response")
+PredictTest2 <- predict(StocksModel2, newdata = stocksTest2, type = "response")
+PredictTest3 <- predict(StocksModel3, newdata = stocksTest3, type = "response")
+table1 <- table(PredictTest1 >= 0.5, stocksTest1$PositiveDec )
+table1
+(43+639)/(43+639+26+350)
+table2 <- table(PredictTest2 >= 0.5, stocksTest2$PositiveDec )
+table2
+(227+812)/(227+812+221+719)
+table3 <- table(PredictTest3 >= 0.5, stocksTest3$PositiveDec )
+table3
+(119+123)/(119+123+76+69)
+```
+
+## p)
+
+Overall accuracy = 0.5794473
+
+```{r}
+AllPredictions <- c(PredictTest1, PredictTest2, PredictTest3)
+AllOutcomes <- c(stocksTest1$PositiveDec, stocksTest2$PositiveDec, stocksTest3$PositiveDec)
+table4 <- table(AllPredictions >= 0.5, AllOutcomes)
+table4
+(439+1574)/(439+1574+323+1138)
+```
+
+
+# Question 2
+## a)
+
+There are 329 bike stations in the dataset.
+```{r}
+citi <- read.csv("citibike.csv")
+str(citi)
+length(unique(citi$startstation))
+length(unique(citi$endstation))
+nlevels(as.factor(citi$startstation))
+nlevels(as.factor(citi$endstation))
+```
+
+## b)
+Average duration of trips taken by bikers is maximum on Sat with `r tapply(citi$tripduration,citi$day,mean)[3]` seconds.
+```{r}
+tapply(citi$tripduration,citi$day,mean)
+
+```
+
+## c)
+The maximum number of 65684 bike trips start at 18 (6 pm) and minimum number of 1151 bike trips start at 4 (4 am).
+```{r}
+max(table(citi$starttime))
+which.max(table(citi$starttime))
+min(table(citi$starttime))
+which.min(table(citi$starttime))
+
+```
+## d)
+23.49904 percent of the bikes were rented by females.
+```{r}
+table(citi$gender)
+156912/(156912+510826)
+```
+## e)
+
+```{r}
+citi$Mon <- as.integer(citi$day == "Mon")
+citi$Tue <- as.integer(citi$day == "Tue")
+citi$Wed <- as.integer(citi$day == "Wed")
+citi$Thu <- as.integer(citi$day == "Thu")
+citi$Fri <- as.integer(citi$day == "Fri")
+citi$Sat <- as.integer(citi$day == "Sat")
+citi$Sun <- as.integer(citi$day == "Sun")
+```
+
+## f)
+
+The variable tripduration is in seconds and the numbers can be very large compared to other numbers and the others are categorical variables. You expect tripduration to dominate.
+
+```{r}
+summary(citi)
+```
+
+## g)
+The maximum value pf trip duration after scaling is 402.9514.
+
+```{r}
+citi1 <- citi
+citi1$tripduration <- scale(citi1$tripduration)
+citi1$gender <- scale(citi1$gender)
+citi1$age <- scale(citi1$age)
+citi1$starttime <- scale(citi1$starttime)
+citi1$Mon <- scale(citi1$Mon)
+citi1$Tue <- scale(citi1$Tue)
+citi1$Wed <- scale(citi1$Wed)
+citi1$Thu <- scale(citi1$Thu)
+citi1$Fri <- scale(citi1$Fri)
+citi1$Sat <- scale(citi1$Sat)
+citi1$Sun <- scale(citi1$Sun)
+max(citi1$tripduration)
+```
+## h)
+The data has 667738 observations. Since there are so many bike rides and we need to compute distance between observations (each pair) this will be computationally intensive for hierarchical clustering (third option is best answer).
+
+## i)
+Smallest cluster size is 415 and largest cluster size is 148501.
+
+```{r}
+set.seed(100)
+cluster1 <- kmeans(citi1[,c("tripduration","gender","age","starttime","Mon","Tue","Wed","Thu","Fri","Sat","Sun")],centers=10)
+min(cluster1$size)
+max(cluster1$size)
+```
+
+## j)
+Cluster 2 seems to fit the description.
+```{r}
+cluster1$centers
+```
+## k)
+Cluster 1 seems to fit the description.
+
+## l)
+You would get different results from the first k-means clustering.
+
+## m)
+You will get identical results as the first k-means clustering.
+
+## n)
+ Here we are looking for: 
+ 
+  * longer trips - tripduration (+),
+  * old - age (+),
+  * female - gender(+),
+  * weekdays - weekday (+).
+
+We create `cluster2` using k-means with 10 clusters below after consolidating the weekday variable and then normalizing it. Cluster 8 best fits the description (in this particular clustering, it may be different in your version).
+```{r}
+citi1$weekday <- 1-as.integer(citi$Sat==1|citi$Sun==1)
+citi1$weekday <- scale(citi1$weekday)
+set.seed(100)
+cluster2 <- kmeans(citi1[,c("tripduration","gender","age","starttime", "weekday")],centers=10)
+cluster2$centers
+```
+
+
+## o) 
+ Here we are looking for in `cluster2` above: 
+ 
+  * short trips - tripduration (-),
+  * young - age (-),
+  * male - gender(-),
+  * early - starttime (-),
+  * weekdays - weekday (+).
+  
+ Cluster 7 fits this description the best (in this particular clustering, it may be different for a different version of R).
+
+
+  
+# Question 3
+
+*The solution has been modified*
+
+Things to be noted for this solution:
+
+- We need to keep track of the correlation scores, unlike in the class notes where they are discarded/overwritten as soon as the order is known.
+
+- Whenever a relevant neighbor of user `u`, let's say user `v`, has a missing entry (user `v` did not rate a certain movie), we should not consider the correlation between `u` and `v` when computing the sum of weights (in the denominator):
+
+ $$ p_{ui} = \frac{\sum_{v\in N_u} S_{u,v} r_{v,i}}{\sum_{v\in N_u} S_{u,v}}$$
+
+- Correlation scores are between -1 and 1. This means that the weighted average can be smaller than 0 or greater than 5. Let us simply project these values onto the feasible output set, i.e. negative scores will be changed to 0, and scores greater than 5 will be changed to 5.
+
+- Use apply to calculate the column means, with the user-defined function `w.avg` that calculates the proper weighted average, and projects the predicted scores onto the feasibleoutput set:
+
+
+```{r}
+w.avg <- function(x,y){
+# If y'all want to use weighted.mean instead, take note to include
+# the separate argument "na.rm=TRUE" in the apply() function call
+# z <- weighted.mean(x,y,na.rm=TRUE)
+z <- sum(x*y, na.rm=TRUE)/sum(y[which(!is.na(x))])
+if (!is.na(z)){
+if(z>5){z <- 5}
+if(z<0){z <- 0}
+}
+return(z)
+}
+```
+
+Now we do the computations below.
+
+```{r}
+ratings <- read.csv("ratings.csv")
+Data <- matrix(nrow=length(unique(ratings$userId)),ncol=length(unique(ratings$movieId)))
+rownames(Data) <- unique(ratings$userId)
+colnames(Data) <- unique(ratings$movieId)
+for(i in 1:nrow(ratings)){
+  Data[as.character(ratings$userId[i]),as.character(ratings$movieId[i])] <- ratings$rating[i]
+}
+Datanorm <- Data - rowMeans(Data,na.rm=TRUE)
+
+
+set.seed(1)       
+spl1 <- sample(1:nrow(Data), 0.98*nrow(Data)) # spl1 has 98% of the rows
+spl1c <- setdiff(1:nrow(Data),spl1)           # spl1c has the remaining ones
+spl2 <- sample(1:ncol(Data), 0.8*ncol(Data))  # spl2 has 80% of the columns
+spl2c <- setdiff(1:ncol(Data),spl2)           # spl2c has the rest
+
+Base1    <- matrix(nrow=length(spl1c), ncol=length(spl2c))
+Base2    <- matrix(nrow=length(spl1c), ncol=length(spl2c))
+UserPred <- matrix(nrow=length(spl1c), ncol=length(spl2c))
+for(i in 1:length(spl1c)){
+  Base1[i,] <- colMeans(Datanorm[spl1,spl2c], na.rm=TRUE)
+}
+for(j in 1:length(spl2c)){
+  Base2[,j] <- rowMeans(Datanorm[spl1c,spl2], na.rm=TRUE)
+}
+RMSEBase1    <- sqrt(mean((Datanorm[spl1c,spl2c] - Base1)^2, na.rm=TRUE)) 
+RMSEBase2    <- sqrt(mean((Datanorm[spl1c,spl2c] - Base2)^2, na.rm= TRUE)) 
+
+
+Cor <- matrix(nrow=length(spl1c),ncol=length(spl1))
+Order <- matrix(nrow=length(spl1c), ncol=length(spl1)) 
+
+suppressWarnings(
+for(i in 1:length(spl1c))
+{for(j in 1:length(spl1))
+{Cor[i,j] <- cor(Data[spl1c[i],spl2],Data[spl1[j],spl2],use = "pairwise.complete.obs")}
+V <- order(Cor[i,], decreasing=TRUE, na.last=NA)
+Order[i,] <- c(V, rep(NA, times=length(spl1)- length(V)))}
+)
+numk <- c(10,50,100,150,200,250,300)
+RMSE <- rep(NA, times=length(numk))
+for(ind in 1:length(numk)){
+k <- numk[ind]
+UserPred <- matrix(nrow=length(spl1c), ncol=length(spl2c))
+for(i in 1:length(spl1c)){
+w <- Cor[i,Order[i,1:k]]
+D <- Data[spl1[Order[i,1:k]],spl2c]
+UserPred[i,] <- apply(D,2,w.avg,y=w)
+}
+RMSE[ind] <- sqrt(mean((Data[spl1c,spl2c] - UserPred)^2,na.rm=TRUE))
+}
+
+RMSEBase1
+RMSEBase2
+RMSE
+plot(numk,RMSE)
+
+```
+
+
+
+##### End of Exercise

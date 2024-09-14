@@ -1,0 +1,230 @@
+---
+title: "Test Your Knowledge of PCA, SVD and Censoring"
+date: "Term 5, 2024"
+output:
+ html_document: 
+    toc: true
+    toc_depth: 2
+    toc_float: true
+    highlight: tango
+geometry: margin=1in
+fontsize: 12pt
+linkcolor: blue    
+---
+
+# Question 1 
+## a) 
+The data has a total of 9 documents and 460 terms. From the figure we see that documents 7 and 8 seem closest to each other in the low dimensional representation from the figure.
+```{r}
+lsiMatrix <- read.table("lsiMatrix.txt")
+str(lsiMatrix)
+X <- as.matrix(t(lsiMatrix))
+dim(X)
+m <- svd(X)
+mreduced <- m$u[,1:2]%*%diag(m$d[1:2])%*%t(m$v[,1:2])
+plot(m$v[,1],m$v[,2])
+text(m$v[,1],m$v[,2],c(1:9),adj=2)
+
+
+```
+
+## b) 
+To find a low dimensional representation of 1, where $X = USV^{\top}$ is the SVD, we need to solve $US \hat{q} = q$ which gives $\hat{q} = S^{-1} U^{\top}q$. The top 3 matches are documents 1, 3 and 2.
+```{r}
+q <- matrix(0,nrow=460,ncol=1)
+q[23] <- 1
+hatq <- solve(diag(m$d[1:2]))%*%t(m$u[,1:2])%*%q
+str(hatq)
+cosine <- matrix(0,9,1)
+for(i in 1:9){
+  cosine[i] <- sum(hatq*m$v[i,1:2])/sqrt(sum(hatq^2)*sum(m$v[i,1:2]^2))
+}
+order(cosine,decreasing=TRUE)
+```
+
+# Question 2
+This question involves the use of principal component analysis on the well-known `iris` dataset. The dataset is available in R.
+
+ <!-- a. How many observations are there in the dataset? What are the different fields/attributes in the data set?   -->
+
+## a)
+There are 150 observations. There are four different attributes (of type numeric): *Sepal length, Sepal width, Petal length* and *Petal width*. The fifth field gives the *Species* which are of three types: *setosa, versicolor, virginica*.
+```{r}
+dim(iris)
+str(iris)
+```
+ <!-- b. Create a new dataset `iris_data` by removing the `Species` column and store its content as `iris_sp`.   -->
+
+## b) 
+
+```{r}
+ iris_data<-iris[,-5]
+ iris_sp<-iris[,5]
+```
+ <!-- c. Compare the various pair of features using a pairwise scatterplot and find  orrelation coefficients between the features. Which features seem to be highly positivel correlated?   -->
+ 
+## c)
+
+*Petal length* and *Petal width* seems highly  positively correlated. Next *sepal length* and *petal length* are also  positively correlated. *Sepal length* and *petal width* also seems quite positively correlated.
+ 
+
+```{r}
+pairs(iris_data)
+cor(iris_data)
+```
+ 
+<!-- d. Conduct a principal component analysis on `iris_data` without scaling the data. You may use `prcomp(..., scale=F)`.  
+    i) How many principal components are required to explain at least 90% of the variability in the data? Plot the cumulative percentage of variance explained by the principal components to answer this question.   -->
+    
+## d) i)
+Clearly in this case, the first principal component already explains more than $90\%$ of the variability in the data set (in fact $92.46\%$ of the variability in the dataset).
+ 
+```{r}
+pr_out<-prcomp(iris_data,scale=F)
+summary(pr_out) 
+pr_out$sdev
+pve<-pr_out$sdev^2/sum(pr_out$sdev^2)
+cpve<-cumsum(pve)
+pve
+cpve
+plot(cpve,xlab="Principal components",type="l",ylim=c(0.7,1))
+```
+In general it is suggested that data be scaled prior to conducting PCA.    
+<!--    ii) Plot the data along the first two principal components and color the different species separately. Does the first principal component create enough separation among the different species? To plot, you may use the function `fviz_pca_ind` and `fviz_pca_biplot` `library(factoextra)`. You can play about with the `habillage` option in the command and also try to create confidence bounds on the ellipses around the groups to see how much they are separated. -->
+    
+## d) ii) 
+
+The first principal component already seems to create a separation between *setosa* and the other two categories, although *versicolor* seems to be quite close to *virginica*. Moreover, it appears the same proportions of *Petal length* and *Petal width* are used in both PC1 and PC2 (the only difference is the magnitude). We can also create 95%  confidence bounds of ellipses around the groups to see how much they are separated.
+ 
+```{r}
+library(factoextra)
+fviz_pca_ind(pr_out, label = "var", habillage=iris_sp)
+fviz_pca_ind(pr_out, label = "var", habillage=iris_sp,addEllipses=TRUE, ellipse.level=0.95)
+fviz_pca_biplot(pr_out, label = "var", habillage=iris_sp)
+fviz_pca_biplot(pr_out, label = "var", habillage=iris_sp,addEllipses=TRUE, ellipse.level=0.95)
+```
+<!--(e) Do the same exercise as in (d) above, now after standardizing the dataset. Comment on any differences you observe.  -->
+
+## e)
+From the standardized PCA, we observe that it requires two principal components to explain more than 90% of the variability in the  data (actually then we explain 95%).
+ 
+When data is standardized, one guideline to pick the number of relevant principal components is to pick the ones with eigen-values (the variances of each components) greater than 1 (which means they explain at least one variable). Check that sum of the eigen-values (variances) is the number of variables (which is four here).
+
+From the plots we can see that after standardizing, the second principal component also contributes to explaining variability. Since the *Petal length*s were already contributing to bigger numbers, a non-standardized version gave much more importance to this attribute. In the standardized version both *Petal length* and *Petal width* tends to get same importance (since they are also quite correlated). Moreover *Sepal width* gets more prominent weights in principal component 1 as well as in principal component 2. The first two components having variances 2.918 and 0.914, it will be natural to choose two principal components here for explaining data variablity (the second PC is not more than one but still quite close).
+
+```{r}
+pr_out_sc<-prcomp(iris_data,scale=T)
+summary(pr_out_sc) 
+pr_out_sc$sdev^2
+sum((pr_out_sc$sdev)^2)
+plot(pr_out_sc$sdev^2)+abline(h=1,col="red")
+pve_sc<-pr_out_sc$sdev^2/sum(pr_out_sc$sdev^2)
+cpve_sc<-cumsum(pve_sc)
+pve_sc
+cpve_sc
+plot(cpve_sc,xlab="Principal components",type="l",ylim=c(0.4,1))
+# compare with the unscaled case:
+#plot(cpve,xlab="Principal components",type="l",ylim=c(0.4,1))
+```
+
+
+```{r}
+library(factoextra)
+fviz_pca_biplot(pr_out_sc, label = "var", habillage=iris_sp)
+fviz_pca_biplot(pr_out_sc, label = "var", habillage=iris_sp,addEllipses=TRUE, ellipse.level=0.95)
+```
+
+
+# Question 3
+
+
+<!-- Q: Quadratic functions are often used in labor economics to capture increasing or decreasing marginal rates. Start by defining a new variables `exper2` which is defined as the square of the `exper` variable. Run a linear regression on the hours worked using all the variables including `exper2` and report on the R-squared and adjusted R-squared. Write down the fitted equation. Does the result indicate that the `exper2` variable is significant at the 5% level? Does the results indicate that experience has an increasing or diminishing marginal effect on wage? -->
+
+## (a)
+
+First we create the variable `exper2` and run linear regression.
+
+```{r}
+mroz <- read.csv("mroz.csv")
+mroz$exper2 <- mroz$exper^2
+m1 <- lm(hours~., data = mroz)
+sum_m <- summary(m1)
+sum_m
+sum_m$r.squared
+sum_m$adj.r.squared
+```
+The R-squared of the model is 0.2656245. The adjusted R-squared of the model is
+0.2587243. The fitted equation is
+\begin{equation*}
+\begin{split}
+\text{hours} =  1330.48 − && 442.09\text{kidslt6} − 32.78\text{kidsge6} − 30.51 \text{age} + 28.76 \text{educ}\\
++ &&  65.67 \text{exper} − 3.45 \text{nwifeinc} − 0.70 \text{exper2}
+\end{split}
+\end{equation*}
+
+The p-value for `exper2` is 0.0267, hence it is significant at $5\%$ level. Also the coefficient is negative, hence if wage is positively correlated with hours worked, then experience seems to have a diminishing marginal effect on wage.
+
+## b)
+
+```{r}
+range(m1$fitted)
+summary(m1$fitted)
+table(m1$fitted<0)
+table(mroz$hours==0)
+```
+
+The range of fitted values from part (a) is $[−719.77, 1614.69]$.
+The number of fitted values below zero is 39, whereas the data set contains 325 observations that have hours equal to zero. Hence there seems to be a huge disparity.
+
+
+## c)
+We use the library `survival` to fit a Tobit model.
+```{r}
+library(survival)
+m2 <- survreg(Surv(hours,hours>0,type="left")~.,data=mroz,dist="gaussian")
+summary(m2)
+summary(m1)
+```
+
+The signs of the coefficients in the Tobit model match with those of the model in part (a). Significance at $5\%$ also seems to match mostly except that `nwifeinc` is not significant in the Tobit model but is significant (marginally) in the model from part (a).
+
+## d)
+
+We follow the instructions and compute the values below.
+
+```{r}
+summary(m1)
+cor(m1$fitted,mroz$hours)^2
+p2 <- predict(m2,newdata=mroz)
+predict2 <- (p2*pnorm(p2/m2$scale)) + (m2$scale*dnorm(p2/m2$scale))
+cor(predict2,mroz$hours)^2
+```
+
+The $R^2$-value in the linear model (part (a)) is 0.266. The Tobit model gives an $R^2$-value  of 0.274 which is higher than 0.266 and hence the Tobit model is preferred one here.
+
+## e)
+
+We follow the instructions to find the estimated values below.
+
+```{r}
+const1 <- m1$coef[1] + m1$coef[2]*mean(mroz$kidslt6) + m1$coef[3]*mean(mroz$kidsge6) + m1$coef[4]*mean(mroz$age) + m1$coef[6]*mean(mroz$exper) + m1$coef[7]*mean(mroz$nwifeinc) + m1$coef[8]*mean(mroz$exper2)
+const1 + m1$coef[5]*8
+const1 + m1$coef[5]*12
+
+const2 <- m2$coef[1] + m2$coef[2]*mean(mroz$kidslt6) + m2$coef[3]*mean(mroz$kidsge6) + m2$coef[4]*mean(mroz$age) + m2$coef[6]*mean(mroz$exper) + m2$coef[7]*mean(mroz$nwifeinc) + m2$coef[8]*mean(mroz$exper2)
+((m2$coef[5]*8+const2)*pnorm(((m2$coef[5]*8+const2))/m2$scale)) + (m2$scale*dnorm(((m2$coef[5]*8+const2))/m2$scale))
+((m2$coef[5]*12+const2)*pnorm(((m2$coef[5]*12+const2))/m2$scale)) + (m2$scale*dnorm(((m2$coef[5]*12+const2))/m2$scale))
+```
+
+The estimate value of hours worked at 8 and 12 years of education from the linear regression
+model is 617.28 and 732.33 respectively.
+For the Tobit model, given 8 and 12 years of education, we estimate respectively the
+values of 423.57 and 597.68. The values from the Tobit model give lower estimates
+of expected hours worked for these levels of education.
+
+There is an increasing marginal effect of education on the hours worked in the Tobit
+model as compared to the linear model, as the difference in hours worked at 12 and 8
+years of education is higher in the Tobit model.
+
+
+##### End of Exercise
